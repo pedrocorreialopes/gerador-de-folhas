@@ -1,0 +1,765 @@
+<!doctype html>
+<html lang="pt-BR" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gerador de Folhas</title>
+  <script src="https://cdn.tailwindcss.com/3.4.17"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500&amp;display=swap" rel="stylesheet">
+  <style>
+    * { font-family: 'Space Grotesk', sans-serif; }
+    .paper-preview {
+      background: white;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.15);
+      aspect-ratio: 210/297;
+    }
+    .template-card {
+      transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+    .template-card:hover {
+      transform: translateY(-4px);
+    }
+    .template-card.selected {
+      ring: 3px;
+      ring-color: #6366f1;
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    .animate-in {
+      animation: fadeIn 0.5s ease-out forwards;
+    }
+    .animate-delay-1 { animation-delay: 0.1s; opacity: 0; }
+    .animate-delay-2 { animation-delay: 0.2s; opacity: 0; }
+    .animate-delay-3 { animation-delay: 0.3s; opacity: 0; }
+  </style>
+  <style>body { box-sizing: border-box; }</style>
+  <script src="/_sdk/data_sdk.js" type="text/javascript"></script>
+ </head>
+ <body class="h-full bg-slate-900 text-white overflow-auto">
+  <div class="min-h-full w-full"><!-- Header -->
+   <header class="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 py-6 px-4">
+    <div class="max-w-6xl mx-auto">
+     <h1 id="app-title" class="text-3xl md:text-4xl font-bold text-center animate-in">📄 Gerador de Folhas</h1>
+     <p class="text-center text-white/80 mt-2 animate-in animate-delay-1">Crie folhas personalizadas para impressão</p>
+    </div>
+   </header>
+   <main class="max-w-6xl mx-auto px-4 py-8">
+    <div class="grid lg:grid-cols-3 gap-8"><!-- Templates Selection -->
+     <div class="lg:col-span-2 space-y-6">
+      <h2 class="text-xl font-semibold text-indigo-300 animate-in animate-delay-2">📋 Escolha o Modelo</h2>
+      <div class="grid grid-cols-2 md:grid-cols-3 gap-4" id="templates-grid"><!-- Templates will be rendered here -->
+      </div><!-- Customization Options -->
+      <div class="bg-slate-800 rounded-2xl p-6 mt-6 animate-in animate-delay-3">
+       <h3 class="text-lg font-semibold text-indigo-300 mb-4">⚙️ Personalização</h3>
+       <div class="grid md:grid-cols-2 gap-4">
+        <div><label class="block text-sm text-slate-400 mb-2">Espaçamento das Linhas</label> <select id="line-spacing" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"> <option value="5">Muito Estreito (5mm)</option> <option value="7" selected>Estreito (7mm)</option> <option value="10">Normal (10mm)</option> <option value="12">Largo (12mm)</option> <option value="15">Muito Largo (15mm)</option> </select>
+        </div>
+        <div><label class="block text-sm text-slate-400 mb-2">Cor das Linhas</label> <select id="line-color" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"> <option value="#d1d5db">Cinza Claro</option> <option value="#93c5fd">Azul Claro</option> <option value="#a5b4fc" selected>Índigo</option> <option value="#86efac">Verde</option> <option value="#fca5a5">Rosa</option> <option value="#000000">Preto</option> </select>
+        </div>
+        <div><label class="block text-sm text-slate-400 mb-2">Tamanho do Papel</label> <select id="paper-size" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"> <option value="a4" selected>A4 (210 x 297mm)</option> <option value="letter">Carta (216 x 279mm)</option> <option value="a5">A5 (148 x 210mm)</option> </select>
+        </div>
+        <div><label class="block text-sm text-slate-400 mb-2">Margem</label> <select id="margin" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"> <option value="10">Pequena (10mm)</option> <option value="15" selected>Normal (15mm)</option> <option value="20">Grande (20mm)</option> <option value="25">Extra Grande (25mm)</option> </select>
+        </div>
+       </div><!-- Template-specific options -->
+       <div id="specific-options" class="mt-4 hidden"><!-- Dynamic options based on template -->
+       </div>
+      </div>
+     </div><!-- Preview Panel -->
+     <div class="space-y-4">
+      <h2 class="text-xl font-semibold text-indigo-300">👁️ Pré-visualização</h2>
+      <div class="bg-slate-800 rounded-2xl p-4">
+       <div class="paper-preview rounded-lg overflow-hidden mx-auto max-w-[250px]" id="preview-container">
+        <canvas id="preview-canvas" class="w-full h-full"></canvas>
+       </div>
+      </div><button id="generate-btn" class="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-4 px-6 rounded-xl transition-all duration-300 transform hover:scale-[1.02] shadow-lg hover:shadow-indigo-500/25 flex items-center justify-center gap-2">
+       <svg class="w-5 h-5" fill="none" stroke="currentColor" viewbox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+       </svg><span id="btn-text">Gerar PDF</span> </button>
+      <p class="text-xs text-slate-500 text-center">O PDF será baixado automaticamente</p>
+     </div>
+    </div>
+   </main><!-- Footer -->
+   <footer class="bg-slate-800/50 py-4 mt-8">
+    <p class="text-center text-slate-500 text-sm">Feito com 💜 para organização</p>
+   </footer>
+  </div>
+  <script>
+    const { jsPDF } = window.jspdf;
+
+    // Default configuration
+    const defaultConfig = {
+      app_title: '📄 Gerador de Folhas',
+      download_button_text: 'Gerar PDF',
+      primary_color: '#6366f1',
+      secondary_color: '#1e293b',
+      text_color: '#ffffff',
+      accent_color: '#a855f7',
+      background_color: '#0f172a',
+      font_family: 'Space Grotesk',
+      font_size: 16
+    };
+
+    let config = { ...defaultConfig };
+
+    // Templates data
+    const templates = [
+      { id: 'lined', name: 'Pautado', icon: '📝', description: 'Linhas horizontais' },
+      { id: 'grid', name: 'Quadriculado', icon: '📊', description: 'Grade quadrada' },
+      { id: 'dotted', name: 'Pontilhado', icon: '⚫', description: 'Pontos em grade' },
+      { id: 'music', name: 'Pauta Musical', icon: '🎵', description: '5 linhas para música' },
+      { id: 'calligraphy', name: 'Caligrafia', icon: '✒️', description: 'Linhas guia' },
+      { id: 'cornell', name: 'Cornell Notes', icon: '📚', description: 'Anotações Cornell' },
+      { id: 'planner', name: 'Agenda Diária', icon: '📅', description: 'Planejador do dia' },
+      { id: 'weekly', name: 'Agenda Semanal', icon: '🗓️', description: 'Visão da semana' },
+      { id: 'isometric', name: 'Isométrico', icon: '📐', description: 'Grade 3D' },
+      { id: 'hexagonal', name: 'Hexagonal', icon: '⬡', description: 'Grade de hexágonos' },
+      { id: 'blank', name: 'Em Branco', icon: '📄', description: 'Folha limpa' },
+      { id: 'graph', name: 'Milimetrado', icon: '📏', description: 'Grade fina' }
+    ];
+
+    let selectedTemplate = 'lined';
+
+    // Initialize templates grid
+    function renderTemplates() {
+      const grid = document.getElementById('templates-grid');
+      grid.innerHTML = templates.map((t, i) => `
+        <div class="template-card bg-slate-800 rounded-xl p-4 cursor-pointer border-2 ${selectedTemplate === t.id ? 'border-indigo-500' : 'border-transparent'} hover:border-indigo-400"
+             data-template="${t.id}" style="animation-delay: ${i * 0.05}s">
+          <div class="text-3xl mb-2">${t.icon}</div>
+          <h3 class="font-semibold text-white">${t.name}</h3>
+          <p class="text-xs text-slate-400 mt-1">${t.description}</p>
+        </div>
+      `).join('');
+
+      // Add click handlers
+      grid.querySelectorAll('.template-card').forEach(card => {
+        card.addEventListener('click', () => {
+          selectedTemplate = card.dataset.template;
+          renderTemplates();
+          updateSpecificOptions();
+          updatePreview();
+        });
+      });
+    }
+
+    // Update template-specific options
+    function updateSpecificOptions() {
+      const container = document.getElementById('specific-options');
+      let html = '';
+
+      if (selectedTemplate === 'planner' || selectedTemplate === 'weekly') {
+        container.classList.remove('hidden');
+        html = `
+          <div class="grid md:grid-cols-2 gap-4">
+            <div>
+              <label class="block text-sm text-slate-400 mb-2">Início das Horas</label>
+              <select id="start-hour" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                ${Array.from({length: 12}, (_, i) => `<option value="${i + 6}" ${i + 6 === 8 ? 'selected' : ''}>${String(i + 6).padStart(2, '0')}:00</option>`).join('')}
+              </select>
+            </div>
+            <div>
+              <label class="block text-sm text-slate-400 mb-2">Fim das Horas</label>
+              <select id="end-hour" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                ${Array.from({length: 12}, (_, i) => `<option value="${i + 12}" ${i + 12 === 22 ? 'selected' : ''}>${String(i + 12).padStart(2, '0')}:00</option>`).join('')}
+              </select>
+            </div>
+          </div>
+        `;
+      } else if (selectedTemplate === 'music') {
+        container.classList.remove('hidden');
+        html = `
+          <div>
+            <label class="block text-sm text-slate-400 mb-2">Pautas por Página</label>
+            <select id="staves-count" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="6">6 pautas</option>
+              <option value="8" selected>8 pautas</option>
+              <option value="10">10 pautas</option>
+              <option value="12">12 pautas</option>
+            </select>
+          </div>
+        `;
+      } else if (selectedTemplate === 'calligraphy') {
+        container.classList.remove('hidden');
+        html = `
+          <div>
+            <label class="block text-sm text-slate-400 mb-2">Estilo de Caligrafia</label>
+            <select id="calligraphy-style" class="w-full bg-slate-700 border border-slate-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-2 focus:ring-indigo-500">
+              <option value="basic" selected>Básico (2 linhas)</option>
+              <option value="slant">Com inclinação</option>
+              <option value="full">Completo (4 linhas)</option>
+            </select>
+          </div>
+        `;
+      } else {
+        container.classList.add('hidden');
+      }
+
+      container.innerHTML = html;
+
+      // Add change listeners for specific options
+      container.querySelectorAll('select').forEach(select => {
+        select.addEventListener('change', updatePreview);
+      });
+    }
+
+    // Get paper dimensions in mm
+    function getPaperDimensions() {
+      const size = document.getElementById('paper-size').value;
+      switch(size) {
+        case 'letter': return { width: 216, height: 279 };
+        case 'a5': return { width: 148, height: 210 };
+        default: return { width: 210, height: 297 }; // A4
+      }
+    }
+
+    // Drawing functions for each template
+    const drawFunctions = {
+      lined: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.5 * scale;
+        const startY = margin * scale;
+        const endY = (paper.height - margin) * scale;
+        const startX = margin * scale;
+        const endX = (paper.width - margin) * scale;
+        
+        for (let y = startY; y <= endY; y += spacing * scale) {
+          ctx.beginPath();
+          ctx.moveTo(startX, y);
+          ctx.lineTo(endX, y);
+          ctx.stroke();
+        }
+      },
+
+      grid: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.5 * scale;
+        const startY = margin * scale;
+        const endY = (paper.height - margin) * scale;
+        const startX = margin * scale;
+        const endX = (paper.width - margin) * scale;
+        
+        // Horizontal lines
+        for (let y = startY; y <= endY; y += spacing * scale) {
+          ctx.beginPath();
+          ctx.moveTo(startX, y);
+          ctx.lineTo(endX, y);
+          ctx.stroke();
+        }
+        // Vertical lines
+        for (let x = startX; x <= endX; x += spacing * scale) {
+          ctx.beginPath();
+          ctx.moveTo(x, startY);
+          ctx.lineTo(x, endY);
+          ctx.stroke();
+        }
+      },
+
+      dotted: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.fillStyle = color;
+        const startY = margin * scale;
+        const endY = (paper.height - margin) * scale;
+        const startX = margin * scale;
+        const endX = (paper.width - margin) * scale;
+        const dotSize = 1 * scale;
+        
+        for (let y = startY; y <= endY; y += spacing * scale) {
+          for (let x = startX; x <= endX; x += spacing * scale) {
+            ctx.beginPath();
+            ctx.arc(x, y, dotSize, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      },
+
+      music: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.7 * scale;
+        const stavesCount = document.getElementById('staves-count')?.value || 8;
+        const staveHeight = 8 * scale;
+        const staveGap = ((paper.height - margin * 2) / stavesCount) * scale;
+        const startX = margin * scale;
+        const endX = (paper.width - margin) * scale;
+        
+        for (let s = 0; s < stavesCount; s++) {
+          const baseY = (margin * scale) + (s * staveGap) + (staveGap / 2);
+          for (let i = 0; i < 5; i++) {
+            const y = baseY + (i * staveHeight / 4);
+            ctx.beginPath();
+            ctx.moveTo(startX, y);
+            ctx.lineTo(endX, y);
+            ctx.stroke();
+          }
+        }
+      },
+
+      calligraphy: (ctx, paper, margin, spacing, color, scale) => {
+        const style = document.getElementById('calligraphy-style')?.value || 'basic';
+        ctx.lineWidth = 0.5 * scale;
+        const startX = margin * scale;
+        const endX = (paper.width - margin) * scale;
+        const lineHeight = spacing * 2 * scale;
+        let y = margin * scale;
+        
+        while (y < (paper.height - margin) * scale) {
+          // Base line (strong)
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 1 * scale;
+          ctx.beginPath();
+          ctx.moveTo(startX, y);
+          ctx.lineTo(endX, y);
+          ctx.stroke();
+          
+          // X-height line
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 0.3 * scale;
+          ctx.setLineDash([2 * scale, 2 * scale]);
+          ctx.beginPath();
+          ctx.moveTo(startX, y - lineHeight * 0.4);
+          ctx.lineTo(endX, y - lineHeight * 0.4);
+          ctx.stroke();
+          ctx.setLineDash([]);
+          
+          if (style === 'full') {
+            // Ascender line
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 0.3 * scale;
+            ctx.beginPath();
+            ctx.moveTo(startX, y - lineHeight * 0.7);
+            ctx.lineTo(endX, y - lineHeight * 0.7);
+            ctx.stroke();
+            
+            // Descender line
+            ctx.beginPath();
+            ctx.moveTo(startX, y + lineHeight * 0.3);
+            ctx.lineTo(endX, y + lineHeight * 0.3);
+            ctx.stroke();
+          }
+          
+          if (style === 'slant') {
+            // Slant lines
+            ctx.strokeStyle = color + '40';
+            ctx.lineWidth = 0.3 * scale;
+            for (let x = startX; x <= endX; x += 10 * scale) {
+              ctx.beginPath();
+              ctx.moveTo(x, y);
+              ctx.lineTo(x + lineHeight * 0.3, y - lineHeight * 0.5);
+              ctx.stroke();
+            }
+          }
+          
+          y += lineHeight;
+        }
+      },
+
+      cornell: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 1 * scale;
+        
+        const cueWidth = 60 * scale;
+        const summaryHeight = 50 * scale;
+        
+        // Main vertical line (cue column)
+        ctx.beginPath();
+        ctx.moveTo(margin * scale + cueWidth, margin * scale);
+        ctx.lineTo(margin * scale + cueWidth, (paper.height - margin) * scale - summaryHeight);
+        ctx.stroke();
+        
+        // Horizontal line (summary area)
+        ctx.beginPath();
+        ctx.moveTo(margin * scale, (paper.height - margin) * scale - summaryHeight);
+        ctx.lineTo((paper.width - margin) * scale, (paper.height - margin) * scale - summaryHeight);
+        ctx.stroke();
+        
+        // Lined area in notes section
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.3 * scale;
+        for (let y = margin * scale + spacing * scale; y < (paper.height - margin) * scale - summaryHeight; y += spacing * scale) {
+          ctx.beginPath();
+          ctx.moveTo(margin * scale + cueWidth + 5 * scale, y);
+          ctx.lineTo((paper.width - margin) * scale, y);
+          ctx.stroke();
+        }
+        
+        // Labels
+        ctx.fillStyle = color;
+        ctx.font = `${8 * scale}px sans-serif`;
+        ctx.fillText('PALAVRAS-CHAVE', (margin + 5) * scale, (margin + 15) * scale);
+        ctx.fillText('ANOTAÇÕES', (margin + cueWidth / scale + 10) * scale, (margin + 15) * scale);
+        ctx.fillText('RESUMO', (margin + 5) * scale, (paper.height - margin - summaryHeight / scale + 15) * scale);
+      },
+
+      planner: (ctx, paper, margin, spacing, color, scale) => {
+        const startHour = parseInt(document.getElementById('start-hour')?.value || 8);
+        const endHour = parseInt(document.getElementById('end-hour')?.value || 22);
+        
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        
+        // Title area
+        ctx.lineWidth = 1 * scale;
+        ctx.beginPath();
+        ctx.moveTo(margin * scale, (margin + 20) * scale);
+        ctx.lineTo((paper.width - margin) * scale, (margin + 20) * scale);
+        ctx.stroke();
+        
+        // Date placeholder
+        ctx.font = `bold ${12 * scale}px sans-serif`;
+        ctx.fillText('DATA: ____/____/________', (margin + 5) * scale, (margin + 12) * scale);
+        
+        // Time slots
+        const slotHeight = ((paper.height - margin * 2 - 30) / (endHour - startHour)) * scale;
+        ctx.lineWidth = 0.5 * scale;
+        ctx.font = `${8 * scale}px sans-serif`;
+        
+        for (let h = startHour; h <= endHour; h++) {
+          const y = (margin + 25) * scale + (h - startHour) * slotHeight;
+          
+          ctx.strokeStyle = color;
+          ctx.beginPath();
+          ctx.moveTo(margin * scale, y);
+          ctx.lineTo((paper.width - margin) * scale, y);
+          ctx.stroke();
+          
+          if (h < endHour) {
+            ctx.fillStyle = color;
+            ctx.fillText(`${String(h).padStart(2, '0')}:00`, (margin + 2) * scale, y + 10 * scale);
+          }
+        }
+        
+        // Vertical line for time column
+        ctx.lineWidth = 0.8 * scale;
+        ctx.beginPath();
+        ctx.moveTo((margin + 25) * scale, (margin + 20) * scale);
+        ctx.lineTo((margin + 25) * scale, (paper.height - margin) * scale);
+        ctx.stroke();
+      },
+
+      weekly: (ctx, paper, margin, spacing, color, scale) => {
+        const days = ['SEG', 'TER', 'QUA', 'QUI', 'SEX', 'SÁB', 'DOM'];
+        const dayWidth = ((paper.width - margin * 2) / 7) * scale;
+        
+        ctx.strokeStyle = color;
+        ctx.fillStyle = color;
+        ctx.lineWidth = 1 * scale;
+        
+        // Header
+        ctx.beginPath();
+        ctx.moveTo(margin * scale, (margin + 15) * scale);
+        ctx.lineTo((paper.width - margin) * scale, (margin + 15) * scale);
+        ctx.stroke();
+        
+        // Day columns
+        ctx.font = `bold ${8 * scale}px sans-serif`;
+        for (let i = 0; i < 7; i++) {
+          const x = margin * scale + i * dayWidth;
+          
+          // Day header
+          ctx.fillText(days[i], x + dayWidth / 2 - 8 * scale, (margin + 10) * scale);
+          
+          // Vertical line
+          if (i > 0) {
+            ctx.beginPath();
+            ctx.moveTo(x, margin * scale);
+            ctx.lineTo(x, (paper.height - margin) * scale);
+            ctx.stroke();
+          }
+        }
+        
+        // Horizontal lines for tasks
+        ctx.lineWidth = 0.3 * scale;
+        for (let y = (margin + 15) * scale + spacing * scale; y < (paper.height - margin) * scale; y += spacing * scale) {
+          ctx.beginPath();
+          ctx.moveTo(margin * scale, y);
+          ctx.lineTo((paper.width - margin) * scale, y);
+          ctx.stroke();
+        }
+      },
+
+      isometric: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.3 * scale;
+        
+        const angle = Math.PI / 6; // 30 degrees
+        const size = spacing * scale;
+        
+        // Draw isometric grid
+        for (let x = margin * scale; x <= (paper.width - margin) * scale; x += size) {
+          // Lines going down-right
+          ctx.beginPath();
+          ctx.moveTo(x, margin * scale);
+          const endY = (paper.height - margin) * scale;
+          const endX = x + (endY - margin * scale) * Math.tan(angle);
+          ctx.lineTo(Math.min(endX, (paper.width - margin) * scale), endY);
+          ctx.stroke();
+          
+          // Lines going down-left
+          ctx.beginPath();
+          ctx.moveTo(x, margin * scale);
+          const endX2 = x - (endY - margin * scale) * Math.tan(angle);
+          ctx.lineTo(Math.max(endX2, margin * scale), endY);
+          ctx.stroke();
+        }
+        
+        // Horizontal lines
+        for (let y = margin * scale; y <= (paper.height - margin) * scale; y += size * Math.cos(angle)) {
+          ctx.beginPath();
+          ctx.moveTo(margin * scale, y);
+          ctx.lineTo((paper.width - margin) * scale, y);
+          ctx.stroke();
+        }
+      },
+
+      hexagonal: (ctx, paper, margin, spacing, color, scale) => {
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.5 * scale;
+        
+        const size = spacing * scale * 0.8;
+        const h = size * Math.sqrt(3) / 2;
+        
+        let row = 0;
+        for (let y = margin * scale + size; y < (paper.height - margin) * scale; y += h * 1.5) {
+          const offset = (row % 2) * size * 1.5;
+          for (let x = margin * scale + offset; x < (paper.width - margin) * scale; x += size * 3) {
+            drawHexagon(ctx, x, y, size);
+          }
+          row++;
+        }
+        
+        function drawHexagon(ctx, cx, cy, size) {
+          ctx.beginPath();
+          for (let i = 0; i < 6; i++) {
+            const angle = (Math.PI / 3) * i - Math.PI / 6;
+            const x = cx + size * Math.cos(angle);
+            const y = cy + size * Math.sin(angle);
+            if (i === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+          }
+          ctx.closePath();
+          ctx.stroke();
+        }
+      },
+
+      blank: (ctx, paper, margin, spacing, color, scale) => {
+        // Just draw margin border (optional)
+        ctx.strokeStyle = color + '30';
+        ctx.lineWidth = 0.5 * scale;
+        ctx.setLineDash([5 * scale, 5 * scale]);
+        ctx.strokeRect(
+          margin * scale,
+          margin * scale,
+          (paper.width - margin * 2) * scale,
+          (paper.height - margin * 2) * scale
+        );
+        ctx.setLineDash([]);
+      },
+
+      graph: (ctx, paper, margin, spacing, color, scale) => {
+        const smallSpacing = 2 * scale;
+        const largeSpacing = 10 * scale;
+        
+        // Small grid
+        ctx.strokeStyle = color + '40';
+        ctx.lineWidth = 0.2 * scale;
+        
+        for (let x = margin * scale; x <= (paper.width - margin) * scale; x += smallSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(x, margin * scale);
+          ctx.lineTo(x, (paper.height - margin) * scale);
+          ctx.stroke();
+        }
+        for (let y = margin * scale; y <= (paper.height - margin) * scale; y += smallSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(margin * scale, y);
+          ctx.lineTo((paper.width - margin) * scale, y);
+          ctx.stroke();
+        }
+        
+        // Large grid
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 0.5 * scale;
+        
+        for (let x = margin * scale; x <= (paper.width - margin) * scale; x += largeSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(x, margin * scale);
+          ctx.lineTo(x, (paper.height - margin) * scale);
+          ctx.stroke();
+        }
+        for (let y = margin * scale; y <= (paper.height - margin) * scale; y += largeSpacing) {
+          ctx.beginPath();
+          ctx.moveTo(margin * scale, y);
+          ctx.lineTo((paper.width - margin) * scale, y);
+          ctx.stroke();
+        }
+      }
+    };
+
+    // Update preview
+    function updatePreview() {
+      const canvas = document.getElementById('preview-canvas');
+      const ctx = canvas.getContext('2d');
+      const paper = getPaperDimensions();
+      const margin = parseInt(document.getElementById('margin').value);
+      const spacing = parseInt(document.getElementById('line-spacing').value);
+      const color = document.getElementById('line-color').value;
+      
+      // Set canvas size for preview (scaled down)
+      const scale = 2;
+      canvas.width = paper.width * scale;
+      canvas.height = paper.height * scale;
+      
+      // Clear canvas
+      ctx.fillStyle = 'white';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      
+      // Draw template
+      if (drawFunctions[selectedTemplate]) {
+        drawFunctions[selectedTemplate](ctx, paper, margin, spacing, color, scale);
+      }
+    }
+
+    // Generate PDF
+    function generatePDF() {
+      const btn = document.getElementById('generate-btn');
+      const btnText = document.getElementById('btn-text');
+      
+      btn.disabled = true;
+      btnText.textContent = 'Gerando...';
+      
+      setTimeout(() => {
+        const paper = getPaperDimensions();
+        const margin = parseInt(document.getElementById('margin').value);
+        const spacing = parseInt(document.getElementById('line-spacing').value);
+        const color = document.getElementById('line-color').value;
+        
+        // Create high-res canvas for PDF
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const scale = 4; // High resolution
+        
+        canvas.width = paper.width * scale;
+        canvas.height = paper.height * scale;
+        
+        // Clear canvas
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // Draw template
+        if (drawFunctions[selectedTemplate]) {
+          drawFunctions[selectedTemplate](ctx, paper, margin, spacing, color, scale);
+        }
+        
+        // Create PDF
+        const orientation = paper.width > paper.height ? 'landscape' : 'portrait';
+        const format = document.getElementById('paper-size').value === 'letter' ? 'letter' : 
+                       document.getElementById('paper-size').value === 'a5' ? 'a5' : 'a4';
+        
+        const pdf = new jsPDF({
+          orientation: orientation,
+          unit: 'mm',
+          format: format
+        });
+        
+        // Add canvas as image
+        const imgData = canvas.toDataURL('image/png');
+        pdf.addImage(imgData, 'PNG', 0, 0, paper.width, paper.height);
+        
+        // Download
+        const templateName = templates.find(t => t.id === selectedTemplate)?.name || 'folha';
+        pdf.save(`${templateName.toLowerCase().replace(/\s/g, '-')}.pdf`);
+        
+        btn.disabled = false;
+        btnText.textContent = config.download_button_text || defaultConfig.download_button_text;
+      }, 100);
+    }
+
+    // Element SDK integration
+    async function onConfigChange(newConfig) {
+      const title = document.getElementById('app-title');
+      const btnText = document.getElementById('btn-text');
+      
+      const customFont = newConfig.font_family || defaultConfig.font_family;
+      const fontSize = newConfig.font_size || defaultConfig.font_size;
+      
+      title.textContent = newConfig.app_title || defaultConfig.app_title;
+      title.style.fontFamily = `${customFont}, Space Grotesk, sans-serif`;
+      title.style.fontSize = `${fontSize * 2}px`;
+      
+      btnText.textContent = newConfig.download_button_text || defaultConfig.download_button_text;
+      
+      // Apply colors
+      document.body.style.backgroundColor = newConfig.background_color || defaultConfig.background_color;
+    }
+
+    function mapToCapabilities(cfg) {
+      return {
+        recolorables: [
+          {
+            get: () => cfg.background_color || defaultConfig.background_color,
+            set: (v) => { cfg.background_color = v; window.elementSdk.setConfig({ background_color: v }); }
+          },
+          {
+            get: () => cfg.secondary_color || defaultConfig.secondary_color,
+            set: (v) => { cfg.secondary_color = v; window.elementSdk.setConfig({ secondary_color: v }); }
+          },
+          {
+            get: () => cfg.text_color || defaultConfig.text_color,
+            set: (v) => { cfg.text_color = v; window.elementSdk.setConfig({ text_color: v }); }
+          },
+          {
+            get: () => cfg.primary_color || defaultConfig.primary_color,
+            set: (v) => { cfg.primary_color = v; window.elementSdk.setConfig({ primary_color: v }); }
+          },
+          {
+            get: () => cfg.accent_color || defaultConfig.accent_color,
+            set: (v) => { cfg.accent_color = v; window.elementSdk.setConfig({ accent_color: v }); }
+          }
+        ],
+        borderables: [],
+        fontEditable: {
+          get: () => cfg.font_family || defaultConfig.font_family,
+          set: (v) => { cfg.font_family = v; window.elementSdk.setConfig({ font_family: v }); }
+        },
+        fontSizeable: {
+          get: () => cfg.font_size || defaultConfig.font_size,
+          set: (v) => { cfg.font_size = v; window.elementSdk.setConfig({ font_size: v }); }
+        }
+      };
+    }
+
+    function mapToEditPanelValues(cfg) {
+      return new Map([
+        ['app_title', cfg.app_title || defaultConfig.app_title],
+        ['download_button_text', cfg.download_button_text || defaultConfig.download_button_text]
+      ]);
+    }
+
+    // Initialize
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities,
+        mapToEditPanelValues
+      });
+      config = window.elementSdk.config;
+    }
+
+    // Event listeners
+    document.getElementById('generate-btn').addEventListener('click', generatePDF);
+    document.getElementById('line-spacing').addEventListener('change', updatePreview);
+    document.getElementById('line-color').addEventListener('change', updatePreview);
+    document.getElementById('paper-size').addEventListener('change', updatePreview);
+    document.getElementById('margin').addEventListener('change', updatePreview);
+
+    // Initial render
+    renderTemplates();
+    updateSpecificOptions();
+    updatePreview();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9d2ef78db242df39',t:'MTc3MTkzNjE1MC4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
